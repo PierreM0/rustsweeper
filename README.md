@@ -4,7 +4,7 @@
 
 ## Launch it
 ```console 
-$ rustsweeper 10 10 10 # rustsweeper [rows] [cols] [bombs]
+$ cargo run 10 10 10 # rustsweeper [rows] [cols] [bombs]
 ```
 
 ## Controls
