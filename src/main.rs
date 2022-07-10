@@ -164,6 +164,8 @@ impl Field {
         if won {
             println!("You won !")
         } else {
+            print!("\x1B[{}A", self.rows);
+            print!("\x1B[{}D", self.cols);
             self.print_all_bombs();
             println!("You loose ...")
         }
