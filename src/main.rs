@@ -1,4 +1,5 @@
 use rand::Rng;
+use std::fmt::Display;
 
 #[derive(Clone, Copy)]
 struct Cell {
@@ -13,6 +14,7 @@ struct Field {
     cols: i32,
     cells: Vec<Cell>,
     bombs: i32,
+    cursor: Point,
 }
 
 #[derive(Clone, Copy)]
@@ -22,7 +24,11 @@ struct Point {
 }
 
 impl Field {
-    pub fn open(&mut self, cursor: Point) {
+    pub fn open(&mut self) {
+        self.open_rec(self.cursor);
+    }
+
+    fn open_rec(&mut self, cursor: Point) {
         let mut cell = self.get_cell_bound(cursor.x, cursor.y);
         if !cell.is_open {
             cell.is_open = true;
@@ -48,7 +54,7 @@ impl Field {
                         if new_cursor.x >= self.cols {
                             new_cursor.y = self.cols - 1
                         }
-                        self.open(new_cursor);
+                        self.open_rec(new_cursor);
                     }
                 }
             }
@@ -57,10 +63,10 @@ impl Field {
             }
         }
     }
-    pub fn mark(&mut self, cursor: Point) {
-        let mut cell = self.get_cell(cursor.x, cursor.y);
+    pub fn mark(&mut self) {
+        let mut cell = self.get_cell(self.cursor.x, self.cursor.y);
         cell.is_marked = !cell.is_marked;
-        self.change_cell(cursor.x, cursor.y, cell);
+        self.change_cell(self.cursor.x, self.cursor.y, cell);
         let mut bomb_count = 0;
         let mut bomb_and_marked_count = 0;
         for i in 0..self.rows as usize {
@@ -92,43 +98,7 @@ impl Field {
             })
         }
     }
-    pub fn print(&mut self, cursor: Point) {
-        for i in 0..self.rows {
-            for j in 0..self.cols {
-                if i == cursor.x && j == cursor.y {
-                    print!("[")
-                } else {
-                    print!(" ")
-                }
-                let cell = self.get_cell(i, j);
-                if cell.is_open {
-                    if cell.is_bomb {
-                        print!("¤")
-                    } else {
-                        let neightbor = self.get_neightbor_of_cell(i, j);
-                        if neightbor > 0 {
-                            print!("{}", neightbor)
-                        } else {
-                            print!(" ");
-                        }
-                    }
-                } else {
-                    if cell.is_marked {
-                        print!("F");
-                    } else {
-                        print!(".");
-                    }
-                }
-                if i == cursor.x && j == cursor.y {
-                    print!("]")
-                } else {
-                    print!(" ")
-                }
-            }
-            print!("\n");
-        }
-    }
-    fn get_neightbor_of_cell(&mut self, row: i32, col: i32) -> i32 {
+    fn get_neightbor_of_cell(&self, row: i32, col: i32) -> i32 {
         let mut neightbors = 0;
         for delta_row in 0..3 {
             for delta_col in 0..3 {
@@ -142,7 +112,7 @@ impl Field {
         }
         return neightbors;
     }
-    fn get_cell_bound(&mut self, x: i32, y: i32) -> Cell {
+    fn get_cell_bound(&self, x: i32, y: i32) -> Cell {
         if 0 <= x && x < self.rows && 0 <= y && y < self.cols {
             let res = self.get_cell(x, y);
             return res;
@@ -154,7 +124,7 @@ impl Field {
             };
         }
     }
-    fn get_cell(&mut self, x: i32, y: i32) -> Cell {
+    fn get_cell(&self, x: i32, y: i32) -> Cell {
         self.cells[(x * self.cols + y) as usize]
     }
     fn change_cell(&mut self, x: i32, y: i32, val: Cell) {
@@ -194,10 +164,7 @@ impl Field {
                 }
             }
         }
-        self.print(Point {
-            x: self.rows / 2,
-            y: self.cols / 2,
-        });
+        print!("{}", self);
     }
 
     fn game_over(&mut self, won: bool) {
@@ -213,9 +180,52 @@ impl Field {
     }
 }
 
+impl Display for Field {
+    fn fmt(&self, _: &mut std::fmt::Formatter) -> std::fmt::Result {
+        for i in 0..self.rows {
+            for j in 0..self.cols {
+                if i == self.cursor.x && j == self.cursor.y {
+                    print!("[")
+                } else {
+                    print!(" ")
+                }
+                let cell = self.get_cell(i, j);
+                if cell.is_open {
+                    if cell.is_bomb {
+                        print!("¤")
+                    } else {
+                        let neightbor = self.get_neightbor_of_cell(i, j);
+                        if neightbor > 0 {
+                            print!("{}", neightbor)
+                        } else {
+                            print!(" ");
+                        }
+                    }
+                } else {
+                    if cell.is_marked {
+                        print!("F");
+                    } else {
+                        print!(".");
+                    }
+                }
+                if i == self.cursor.x && j == self.cursor.y {
+                    print!("]")
+                } else {
+                    print!(" ")
+                }
+            }
+            print!("\n");
+        }
+        Ok(())
+    }
+}
+
 use console;
 use std;
 fn main() {
+    let mut rows = 10;
+    let mut cols = 10;
+    let mut bombs = 10;
     let mut field: Field = Field {
         bombs: 0,
         rows: 0,
@@ -228,10 +238,8 @@ fn main() {
             };
             0
         ],
+        cursor: Point { x: 0, y: 0 },
     };
-    let mut rows = 10;
-    let mut cols = 10;
-    let mut bombs = 10;
     let args: Vec<String> = std::env::args().collect();
     if args.len() > 1 {
         rows = args[1].parse().unwrap();
@@ -247,42 +255,44 @@ fn main() {
     }
     field.resize(rows, cols);
     field.put_bombs(bombs);
-    let mut cursor = Point {
+    field.cursor = Point {
         x: rows / 2,
         y: cols / 2,
     };
 
     let stdout = console::Term::buffered_stdout();
 
-    field.print(cursor);
+    print!("{}", field);
+
     'game_loop: loop {
         print!("\x1B[{}A", rows);
         print!("\x1B[{}D", cols);
-        field.print(cursor);
+        print!("{}", field);
+
         if let Ok(k) = stdout.read_key() {
             match k {
                 console::Key::ArrowLeft => {
-                    if cursor.y > 0 {
-                        cursor.y -= 1
+                    if field.cursor.y > 0 {
+                        field.cursor.y -= 1
                     }
                 }
                 console::Key::ArrowRight => {
-                    if cursor.y < field.cols - 1 {
-                        cursor.y += 1
+                    if field.cursor.y < field.cols - 1 {
+                        field.cursor.y += 1
                     }
                 }
                 console::Key::ArrowUp => {
-                    if cursor.x > 0 {
-                        cursor.x -= 1
+                    if field.cursor.x > 0 {
+                        field.cursor.x -= 1
                     }
                 }
                 console::Key::ArrowDown => {
-                    if cursor.x < field.rows - 1 {
-                        cursor.x += 1
+                    if field.cursor.x < field.rows - 1 {
+                        field.cursor.x += 1
                     }
                 }
-                console::Key::Char(' ') => field.open(cursor),
-                console::Key::Char('f') => field.mark(cursor),
+                console::Key::Char(' ') => field.open(),
+                console::Key::Char('f') => field.mark(),
                 console::Key::Char('q') => break 'game_loop,
                 _ => (),
             }
